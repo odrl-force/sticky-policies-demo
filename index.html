@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#faf9f6" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%232b5190'/%3E%3Cpath d='M11 29 29 11M12 11h17v17' fill='none' stroke='%23ffffff' stroke-width='3'/%3E%3C/svg%3E"
+    />
+    <meta
+      name="description"
+      content="A Sticky Policies demo using ODRL, DPV and N3 reasoning, from the ODRL-FORCE team at KNoWS UGent."
+    />
+    <title>Sticky Policies — ODRL-FORCE · KNoWS UGent</title>
+    <link rel="stylesheet" href="./src/style.css" />
+    <script type="module" src="./src/app.js"></script>
+  </head>
+  <body>
+    <header class="site-header wrap">
+      <a class="team-name" href="#">ODRL-FORCE <span> / KNoWS UGent</span></a>
+      <nav aria-label="Main navigation">
+        <a href="#journey">Try the demo</a>
+        <a href="#under-the-hood">How it works</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero wrap" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <h1 id="page-title">Sticky Policies</h1>
+          <p class="demo-subtitle">A demo using ODRL, DPV and N3 reasoning</p>
+          <p class="attribution">
+            From the <strong>ODRL-FORCE team</strong> at
+            <strong>KNoWS UGent</strong>
+          </p>
+          <p class="intro-question">
+            When we share data, how do we keep track of what people are allowed
+            to do with it?
+          </p>
+          <p>
+            Imagine a <strong>research dataspace</strong>: a hospital, a
+            university and a partner lab share data while remaining responsible
+            for their own systems. A <strong>sticky policy</strong> carries the
+            hospital’s conditions across those organisational boundaries. Change
+            a request to see whether the rules support it — and why.
+          </p>
+          <div class="hero-actions">
+            <a href="#journey" class="button primary" id="follow-story"
+              >Try the example <span aria-hidden="true">↓</span></a
+            >
+            <span class="hero-note"
+              >No prior knowledge of the standards needed.</span
+            >
+          </div>
+        </div>
+        <figure class="notebook-diagram">
+          <div class="diagram-inputs">
+            <div class="diagram-sheet">
+              <span aria-hidden="true">▤</span><b>The data</b
+              ><small>A research cohort</small>
+            </div>
+            <div class="diagram-sheet policy-note">
+              <span aria-hidden="true">↗</span><b>Its policy</b
+              ><small>Research only.<br />Keep for ≤ 30 days.</small>
+            </div>
+            <div class="diagram-sheet">
+              <span aria-hidden="true">✓</span><b>The evidence</b
+              ><small>Consent, approval<br />and safeguards</small>
+            </div>
+          </div>
+          <div class="diagram-arrow" aria-hidden="true">↓</div>
+          <div class="diagram-reasoning">
+            N3 rules <span>+</span> Eyeron reasoner
+          </div>
+          <div class="diagram-arrow" aria-hidden="true">↓</div>
+          <div class="diagram-result">
+            A decision <span>with a proof you can inspect</span>
+          </div>
+          <figcaption>
+            The idea: keep the conditions and the reasons with the data.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section
+        class="journey wrap"
+        id="journey"
+        aria-labelledby="journey-title"
+      >
+        <div class="section-heading">
+          <h2 id="journey-title">Try it: a research dataspace</h2>
+          <span class="fiction-note"
+            ><span></span> Fictional data · real reasoning</span
+          >
+        </div>
+        <div class="dataspace-context">
+          <p>
+            A dataspace lets organisations share data under agreed conditions.
+            Here, each organisation is a <strong>participant</strong>. A
+            participant’s <strong>connector</strong> could use the reasoning
+            shown below to help decide whether a requested use is supported.
+          </p>
+          <ol
+            class="participant-map"
+            aria-label="Participants in the illustrative research dataspace"
+          >
+            <li data-participant-stage="1" class="active" aria-current="step">
+              <h3>Hospital</h3>
+              <p>Data provider</p>
+              <small>Offers the cohort with its policy</small>
+            </li>
+            <li data-participant-stage="2">
+              <h3>University</h3>
+              <p>Consumer → onward provider</p>
+              <small>Requests research use, then passes the policy on</small>
+            </li>
+            <li data-participant-stage="3">
+              <h3>Partner lab</h3>
+              <p>New data consumer</p>
+              <small>Needs a fresh decision for its own use</small>
+            </li>
+          </ol>
+          <p class="exchange-status" id="exchange-status" role="status">
+            The hospital publishes its conditions. No permission transfers
+            automatically.
+          </p>
+          <p class="dataspace-note">
+            The links represent organisational boundaries. This is a
+            policy-decision simulation: no connectors are deployed and no
+            patient data is transferred.
+          </p>
+        </div>
+        <div class="steps" role="tablist" aria-label="Dataset journey">
+          <button
+            class="step active"
+            id="step-1"
+            role="tab"
+            aria-selected="true"
+            aria-controls="story-panel"
+            data-stage="1"
+          >
+            <span class="step-number">01</span
+            ><span
+              ><b>Attach a policy</b
+              ><small>The hospital sets the policy</small></span
+            ><span class="step-arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            class="step"
+            id="step-2"
+            role="tab"
+            aria-selected="false"
+            aria-controls="story-panel"
+            data-stage="2"
+          >
+            <span class="step-number">02</span
+            ><span
+              ><b>Check a request</b
+              ><small>A researcher requests access</small></span
+            ><span class="step-arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            class="step"
+            id="step-3"
+            role="tab"
+            aria-selected="false"
+            aria-controls="story-panel"
+            data-stage="3"
+          >
+            <span class="step-number">03</span
+            ><span><b>Share it again</b><small>The data moves on</small></span>
+          </button>
+        </div>
+
+        <div
+          id="story-panel"
+          class="story-panel"
+          role="tabpanel"
+          aria-labelledby="step-1"
+          tabindex="0"
+        >
+          <div class="story-intro">
+            <div>
+              <h3 id="story-title">1. The hospital attaches its policy</h3>
+              <p id="story-description">
+                The hospital is the data provider in this research dataspace. It
+                offers a cohort with a policy describing which uses are
+                acceptable. A catalogue could make that offer discoverable.
+              </p>
+            </div>
+            <button class="text-button" id="reset">↺ Reset story</button>
+          </div>
+          <div id="attach-view" class="attach-grid">
+            <article class="dataset-card">
+              <div class="card-heading">
+                <span class="square-icon" aria-hidden="true">▤</span>
+                <h4>The research cohort</h4>
+              </div>
+              <p>Three invented observations for a scientific study.</p>
+              <div class="dataset-table">
+                <div><span>Dataset</span><code>_:data</code></div>
+                <div><span>Data steward</span><b>University Hospital</b></div>
+                <div><span>Evidence</span><b>Consent + ethics approval</b></div>
+              </div>
+              <div class="dataset-foot">
+                <span class="live-dot"></span> Only invented observations are
+                used in this demo
+              </div>
+            </article>
+            <article class="policy-card">
+              <div class="card-heading">
+                <span class="square-icon coral" aria-hidden="true">↗</span>
+                <h4>The conditions for sharing</h4>
+              </div>
+              <div class="policy-promises">
+                <div>
+                  <span class="promise-icon">⌁</span>
+                  <div>
+                    <b>For scientific research</b>
+                    <p>Consent and ethics approval must cover this use.</p>
+                  </div>
+                </div>
+                <div>
+                  <span class="promise-icon">◷</span>
+                  <div>
+                    <b>Keep it for 30 days, at most</b>
+                    <p>De-identification evidence must accompany the data.</p>
+                  </div>
+                </div>
+                <div>
+                  <span class="promise-icon">↗</span>
+                  <div>
+                    <b>Pass the policy along</b>
+                    <p>
+                      A new recipient needs a new decision, under the same
+                      rules.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="policy-foot">
+                <span>Human-readable here. Machine-readable in ODRL.</span
+                ><button class="text-button" id="inspect-policy">
+                  See the N3 ↗
+                </button>
+              </div>
+            </article>
+          </div>
+          <div id="request-view" hidden>
+            <div class="scenario-bar">
+              <span>Try a different situation</span>
+              <div id="presets">
+                <button data-preset="research" class="preset active">
+                  Research as planned</button
+                ><button data-preset="marketing" class="preset">
+                  A different purpose</button
+                ><button data-preset="consent" class="preset">
+                  Consent withdrawn
+                </button>
+              </div>
+            </div>
+            <div class="request-grid">
+              <form id="request-form" class="request-card">
+                <div class="request-card-top">
+                  <h4 id="request-title">The university’s request</h4>
+                  <span class="tag">ODRL REQUEST</span>
+                </div>
+                <label class="field-label" for="purpose"
+                  >What will the data be used for?</label
+                ><select name="purpose" id="purpose">
+                  <option value="ScientificResearch">
+                    Scientific research
+                  </option>
+                  <option value="Marketing">Marketing</option>
+                </select>
+                <div class="range-heading">
+                  <label class="field-label" for="days"
+                    >How long will it be kept?</label
+                  ><output id="days-label" for="days">30 days</output>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="90"
+                  value="30"
+                  name="days"
+                  id="days"
+                />
+                <div class="range-labels">
+                  <span>1 day</span><span>Policy limit: 30 days</span
+                  ><span>90 days</span>
+                </div>
+                <div class="toggle-list">
+                  <label
+                    ><span
+                      ><b>Ethics approval</b
+                      ><small
+                        >For this recipient, cohort and research purpose</small
+                      ></span
+                    ><input
+                      type="checkbox"
+                      id="approval"
+                      name="approval"
+                      checked
+                      role="switch" /><i aria-hidden="true"></i></label
+                  ><label
+                    ><span
+                      ><b>Consent is in place</b
+                      ><small>For scientific use of this cohort</small></span
+                    ><input
+                      type="checkbox"
+                      id="consent"
+                      name="consent"
+                      checked
+                      role="switch" /><i aria-hidden="true"></i></label
+                  ><label
+                    ><span
+                      ><b>De-identification recorded</b
+                      ><small
+                        >A safeguard, not a claim of anonymity</small
+                      ></span
+                    ><input
+                      type="checkbox"
+                      id="deidentified"
+                      name="deidentified"
+                      checked
+                      role="switch" /><i aria-hidden="true"></i></label
+                  ><label
+                    ><span
+                      ><b>Carry the policy forward</b
+                      ><small
+                        >Accept the same conditions for further sharing</small
+                      ></span
+                    ><input
+                      type="checkbox"
+                      id="carry"
+                      name="carry"
+                      checked
+                      role="switch" /><i aria-hidden="true"></i
+                  ></label>
+                </div>
+              </form>
+              <section
+                class="decision-card"
+                aria-labelledby="decision-title"
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <div class="decision-symbol" id="decision-symbol">⋯</div>
+                <h4 id="decision-title">Checking the evidence…</h4>
+                <p id="decision-description">
+                  The N3 rules are evaluating this request.
+                </p>
+                <ul id="checks" class="checks"></ul>
+                <div class="decision-top">
+                  <span><span class="live-dot"></span> Reasoned by Eyeron</span
+                  ><span id="run-time">In your browser</span>
+                </div>
+                <div class="decision-bottom">
+                  <span id="proof-status">Loading the reasoner…</span
+                  ><button class="proof-link" id="inspect-proof" disabled>
+                    Inspect proof ↗
+                  </button>
+                </div>
+              </section>
+            </div>
+            <div class="logic-note">
+              <span>↳</span>
+              <p id="logic-note">
+                The permission is a conclusion, not a checkbox. Change a fact
+                and Eyeron derives a fresh result.
+              </p>
+            </div>
+          </div>
+          <div class="story-footer">
+            <p id="story-takeaway">
+              <span>↗</span> The policy travels with the data, instead of
+              staying behind in a terms-of-use page.
+            </p>
+            <button class="button primary" id="next-stage">
+              Make a request <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="trust-section wrap" aria-labelledby="trust-title">
+        <div class="trust-copy">
+          <h2 id="trust-title">What travels with the data?</h2>
+          <p>
+            The trust envelope is a <strong>TriG dataset</strong>. A blank node
+            names the graph containing the actual data, and the policy refers to
+            that same node. The example includes three invented observations so
+            you can inspect the payload as well as its conditions.
+          </p>
+          <pre
+            class="envelope-example"
+            aria-label="Simplified TriG envelope example"
+          ><code># The same blank node names and describes the data graph.
+_:data { :sample-1 :value 12.4 . }
+_:data :stickyPolicy :policy-b .
+_:context {
+  :offered-use odrl:target _:data .
+}</code></pre>
+          <p class="envelope-explanation">
+            At each dataspace handoff, the recipient gets the payload, policy,
+            evidence and proof together. Blank node labels are local to the
+            dataset; a fresh use still needs a fresh decision.
+          </p>
+          <div class="envelope-actions">
+            <button class="text-button" id="inspect-envelope" disabled>
+              Inspect the TriG
+            </button>
+            <button class="text-button" id="download-envelope" disabled>
+              Download TriG <span aria-hidden="true">↓</span>
+            </button>
+          </div>
+          <small id="download-hint">Preparing the current decision…</small>
+        </div>
+        <div class="envelope-stack">
+          <div class="stack-row">
+            <span class="stack-num">01</span>
+            <div>
+              <b>The actual data graph</b
+              ><span>Three synthetic observations, inside the envelope</span>
+            </div>
+            <code>_:data</code>
+          </div>
+          <div class="stack-row">
+            <span class="stack-num">02</span>
+            <div>
+              <b>The sticky policy</b
+              ><span>Permissions, constraints and duties</span>
+            </div>
+            <span class="mini-tag">ODRL</span>
+          </div>
+          <div class="stack-row">
+            <span class="stack-num">03</span>
+            <div>
+              <b>The supporting evidence</b
+              ><span>Purpose, consent and safeguards</span>
+            </div>
+            <span class="mini-tag">DPV</span>
+          </div>
+          <div class="stack-row">
+            <span class="stack-num">04</span>
+            <div>
+              <b>The decision + its proof</b
+              ><span>A derivation the recipient can check</span>
+            </div>
+            <span class="mini-tag">N3</span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="under-hood wrap"
+        id="under-the-hood"
+        aria-labelledby="hood-title"
+      >
+        <div class="hood-header">
+          <h2 id="hood-title">How does the reasoning work?</h2>
+          <button class="button outlined" id="open-inspector">
+            Explore the rules <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+        <div class="explain-grid">
+          <article>
+            <span class="explain-icon">{ }</span>
+            <h3>ODRL: the policy</h3>
+            <p>
+              The request, permission, purpose constraint and onward-sharing
+              duty use the Open Digital Rights Language.
+            </p>
+            <a
+              href="https://www.w3.org/TR/odrl-model/"
+              target="_blank"
+              rel="noreferrer"
+              >Explore ODRL ↗</a
+            >
+          </article>
+          <article>
+            <span class="explain-icon">⋈</span>
+            <h3>DPV: the supporting facts</h3>
+            <p>
+              The Data Privacy Vocabulary gives shared meaning to research
+              purposes, consent and protective measures.
+            </p>
+            <a href="https://w3id.org/dpv/" target="_blank" rel="noreferrer"
+              >Explore DPV ↗</a
+            >
+          </article>
+          <article>
+            <span class="explain-icon">∴</span>
+            <h3>N3: the rules</h3>
+            <p>
+              Eyeron applies formal Notation3 rules to the facts, derives an
+              agreement when supported, and checks the proof.
+            </p>
+            <a
+              href="https://github.com/eyereasoner/eyeron"
+              target="_blank"
+              rel="noreferrer"
+              >Explore Eyeron ↗</a
+            >
+          </article>
+        </div>
+        <details class="dataspace-boundary">
+          <summary>How does the TriG envelope refer to its data?</summary>
+          <p>
+            In TriG, the same blank node can label a graph and occur in triples
+            about that graph. Here, <code>_:data</code> labels the payload
+            graph; the ODRL targets and DPV evidence use that same node in the
+            context graph. The catalogue identifier
+            <code>:cohort-b</code> points to it.
+          </p>
+          <p>
+            The exact N3 rules and proof are also included as text artifacts,
+            since N3 formulae are not native TriG syntax. The verifier checks
+            the payload and context as RDF graphs, then replays the saved proof.
+            Renaming blank-node labels does not change that RDF structure. See
+            the
+            <a
+              href="https://www.w3.org/TR/trig/#sec-graph-statements"
+              target="_blank"
+              rel="noreferrer"
+              >W3C TriG graph syntax</a
+            >.
+          </p>
+        </details>
+        <details class="dataspace-boundary">
+          <summary>Where would this fit in a real dataspace?</summary>
+          <p>
+            The N3 reasoner could serve as a policy decision component alongside
+            a connector. The provider publishes an offer; a consumer proposes a
+            use with evidence; the rules derive an agreement when the conditions
+            are supported. The connector and the participant’s applications
+            would then need to act on that result.
+          </p>
+          <p>
+            This demo does not implement a catalogue, participant identity,
+            credential verification, contract-negotiation or transfer protocols,
+            or runtime usage control. A checked proof explains a decision; it
+            does not itself make a connector enforce the policy. The trust
+            envelope is an illustrative bundle, not a standard dataspace
+            message.
+          </p>
+          <p>
+            For background, see
+            <a
+              href="https://international-data-spaces-association.github.io/DataspaceConnector/Documentation/v6/UsageControl"
+              target="_blank"
+              rel="noreferrer"
+              >IDSA’s Dataspace Connector usage-control documentation ↗</a
+            >. This demo is not an integration with that connector.
+          </p>
+        </details>
+        <details class="trust-boundary">
+          <summary>What does the proof establish?</summary>
+          <p>
+            It establishes that the conclusion follows from these supplied facts
+            and this application’s rules. It does not authenticate the hospital,
+            validate consent in the real world, or enforce deletion. Here,
+            evidence is illustrative, consent is simplified to a cohort-level
+            assertion, and the envelope is unsigned. A production trust envelope
+            would also need trusted issuers, authenticated evidence, freshness
+            checks and enforcement at each recipient.
+          </p>
+          <p>
+            De-identification does not mean anonymity. A missing agreement means
+            permission was not established under this profile; it is not a
+            derived prohibition. The retention and policy-carrying terms are
+            local extensions, not a general ODRL evaluator.
+          </p>
+        </details>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <p>
+        <strong>Sticky Policies demo</strong><br />ODRL-FORCE team · KNoWS UGent
+      </p>
+      <a
+        href="https://eyereasoner.github.io/eyeron/playground#example=verifiable-decision"
+        target="_blank"
+        rel="noreferrer"
+        >Based on Eyeron’s verifiable decision example ↗</a
+      >
+    </footer>
+
+    <dialog id="inspector" aria-labelledby="inspector-title">
+      <div class="inspector-header">
+        <div>
+          <h2 id="inspector-title">Inspect the reasoning</h2>
+          <p>The exact inputs and outputs of the current decision.</p>
+        </div>
+        <button
+          class="close-button"
+          aria-label="Close inspector"
+          id="close-inspector"
+        >
+          ×
+        </button>
+      </div>
+      <div
+        class="inspector-tabs"
+        role="tablist"
+        aria-label="Reasoning artifacts"
+      >
+        <button
+          role="tab"
+          aria-selected="false"
+          aria-controls="code-panel"
+          data-tab="envelope"
+        >
+          TriG envelope
+        </button>
+        <button
+          role="tab"
+          aria-selected="true"
+          aria-controls="code-panel"
+          data-tab="rules"
+        >
+          N3 rules</button
+        ><button
+          role="tab"
+          aria-selected="false"
+          aria-controls="code-panel"
+          data-tab="facts"
+        >
+          Policy + facts</button
+        ><button
+          role="tab"
+          aria-selected="false"
+          aria-controls="code-panel"
+          data-tab="output"
+        >
+          Conclusion</button
+        ><button
+          role="tab"
+          aria-selected="false"
+          aria-controls="code-panel"
+          data-tab="proof"
+        >
+          Proof</button
+        ><button
+          role="tab"
+          aria-selected="false"
+          aria-controls="code-panel"
+          data-tab="audit"
+        >
+          Verification
+        </button>
+      </div>
+      <div class="code-toolbar">
+        <span id="code-filename">rules.n3</span
+        ><button class="text-button" id="copy-code">Copy</button>
+      </div>
+      <pre
+        id="code-panel"
+        role="tabpanel"
+        tabindex="0"
+      ><code id="code-content"></code></pre>
+      <div class="inspector-footer">
+        <span id="audit-note"
+          >Proofs verify reasoning relative to the supplied source facts.</span
+        ><button class="button primary" id="recheck-proof" disabled>
+          Recheck proof <span aria-hidden="true">↻</span>
+        </button>
+      </div>
+    </dialog>
+    <div id="toast" role="status" class="toast" hidden></div>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "sticky-policies-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An interactive research data story powered by Eyeron, N3, ODRL and DPV.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "node scripts/verify-envelope.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "n3": "^2.13.12",
+    "rdf-canonize": "^5.0.0"
+  }
+}
