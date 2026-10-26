@@ -107,6 +107,7 @@ function setPending() {
   for (const id of [
     "download-envelope",
     "inspect-envelope",
+    "download-report",
     "inspect-report",
     "inspect-proof",
     "recheck-proof",
@@ -147,21 +148,27 @@ async function run(token) {
       elapsed: Math.round(performance.now() - start),
     };
     result.compliance = await complianceReport(result.output);
-    result.envelope = await createEnvelope(result, engineVersion);
+    // A trust envelope carries an instantiated policy, so it exists only for
+    // an Active permission. A denied request still gets its compliance report.
+    result.envelope = result.allowed
+      ? await createEnvelope(result, engineVersion)
+      : "";
     if (token !== revision) return;
     current = result;
     renderDecision();
     renderCode();
     for (const id of [
-      "download-envelope",
-      "inspect-envelope",
+      "download-report",
       "inspect-report",
       "inspect-proof",
       "recheck-proof",
     ])
       $(id).disabled = false;
-    $("download-hint").textContent =
-      "TriG dataset · synthetic payload, policy, evidence and proof";
+    for (const id of ["download-envelope", "inspect-envelope"])
+      $(id).disabled = !result.allowed;
+    $("download-hint").textContent = result.allowed
+      ? "TriG trust envelope · synthetic payload, agreement, evidence and proof"
+      : "No trust envelope: the permission is not Active, so there is no agreement to send. The compliance report explains why.";
   } catch (error) {
     if (token !== revision) return;
     document.querySelector(".decision-card").setAttribute("aria-busy", "false");
@@ -171,7 +178,7 @@ async function run(token) {
     $("exchange-status").textContent =
       "No current exchange decision is available: the reasoner needs attention.";
     $("download-hint").textContent =
-      "An envelope is available after a successful reasoning run.";
+      "A report is available after a successful reasoning run.";
     renderCode();
   }
 }
@@ -250,7 +257,9 @@ function renderDecision() {
       return li;
     }),
   );
-  const verified = audit.match(/checked: (\d+) steps, (\d+) verified/);
+  const verified = audit.match(
+    /checked(?: with obligations)?: (\d+) steps, (\d+) verified/,
+  );
   $("proof-status").textContent = verified
     ? `${verified[2]} proof steps checked`
     : "Proof checked against source inputs";
@@ -399,6 +408,8 @@ const fileNames = {
 function tabContent() {
   if (selectedTab === "rules") return rules;
   if (selectedTab === "facts") return createFacts(state);
+  if (selectedTab === "envelope" && current && !current.envelope)
+    return "No trust envelope is issued for this request. An envelope carries the agreement derived for one recipient, and the permission is not Active. The compliance report and proof still explain the decision.";
   return (
     current?.[selectedTab] ||
     "The current decision is being prepared. If the reasoner reports an error, reload the page to try again."
@@ -505,6 +516,18 @@ $("recheck-proof").addEventListener("click", async () => {
   } finally {
     $("recheck-proof").disabled = !current;
   }
+});
+$("download-report").addEventListener("click", () => {
+  if (!current?.compliance) return;
+  const url = URL.createObjectURL(
+    new Blob([current.compliance], { type: "text/turtle" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "compliance-report.ttl";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast("FORCE compliance report downloaded.");
 });
 $("download-envelope").addEventListener("click", () => {
   if (!current?.envelope) return;

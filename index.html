@@ -417,24 +417,39 @@
         <div class="trust-copy">
           <h2 id="trust-title">What travels with the data?</h2>
           <p>
-            The trust envelope is a <strong>TriG dataset</strong>. A blank node
-            names the graph containing the actual data, and the policy refers to
-            that same node. The example includes three invented observations so
-            you can inspect the payload as well as its conditions.
+            The trust envelope follows the
+            <a
+              href="https://w3id.org/trustenvelope"
+              target="_blank"
+              rel="noreferrer"
+              >Trust Envelope</a
+            >
+            model: a data unit, the policy instantiated for one recipient, and
+            provenance for each. It is a <strong>TriG dataset</strong>. A blank
+            node names the graph containing the actual data, and the policy
+            refers to that same node. The example includes three invented
+            observations so you can inspect the payload as well as its
+            conditions.
           </p>
           <pre
             class="envelope-example"
             aria-label="Simplified TriG envelope example"
-          ><code># The same blank node names and describes the data graph.
+          ><code>:envelope a te:TrustEnvelope ;
+  dpv:hasData _:data ;
+  odrl:hasPolicy :agreement-42 ;
+  te:provenance :data-provenance,
+                :policy-provenance .
+# The same blank node names and describes the data graph.
 _:data { :sample-1 :value 12.4 . }
-_:data :stickyPolicy :policy-b .
-_:context {
+_:policy {
   :offered-use odrl:target _:data .
 }</code></pre>
           <p class="envelope-explanation">
-            At each dataspace handoff, the recipient gets the payload, policy,
-            evidence and proof together. Blank node labels are local to the
-            dataset; a fresh use still needs a fresh decision.
+            At each dataspace handoff, the recipient gets the payload, the
+            agreement derived for it, evidence and proof together. A request
+            that is not Active gets a compliance report instead, because there
+            is no agreement to send. Blank node labels are local to the dataset;
+            a fresh use still needs a fresh decision.
           </p>
           <div class="envelope-actions">
             <button class="text-button" id="inspect-envelope" disabled>
@@ -442,6 +457,9 @@ _:context {
             </button>
             <button class="text-button" id="download-envelope" disabled>
               Download TriG <span aria-hidden="true">↓</span>
+            </button>
+            <button class="text-button" id="download-report" disabled>
+              Download report <span aria-hidden="true">↓</span>
             </button>
           </div>
           <small id="download-hint">Preparing the current decision…</small>
@@ -458,8 +476,8 @@ _:context {
           <div class="stack-row">
             <span class="stack-num">02</span>
             <div>
-              <b>The sticky policy</b
-              ><span>Permissions, constraints and duties</span>
+              <b>The policy for this recipient</b
+              ><span>The original sticky policy and the derived agreement</span>
             </div>
             <span class="mini-tag">ODRL</span>
           </div>
@@ -546,13 +564,14 @@ _:context {
             those RDF report states directly.
           </p>
           <p>
-            All premises must be Satisfied for Active. An Unsatisfied premise
-            makes the permission Inactive. The current snapshot supplies
-            explicit negative evidence; missing information without a declared
-            status is left unreported. A matching request is Attempted. There
-            are no action observations, so performance is Unknown and the
-            deontic state is NonSet. The future onward-sharing duty is not
-            evaluated.
+            All premises must be Satisfied for Active. As FORCE specifies,
+            missing information counts as not satisfied: the snapshot is a
+            closed world, so a premise without supporting evidence is
+            Unsatisfied and makes the permission Inactive. The proof records
+            this absence as a trusted obligation. A matching request is
+            Attempted. There are no action observations, so performance is
+            Unknown and the deontic state is NonSet. The future onward-sharing
+            duty is not evaluated.
           </p>
           <p>
             This is a documented FORCE-based subset for this research profile,
@@ -581,16 +600,20 @@ _:context {
           <p>
             In TriG, the same blank node can label a graph and occur in triples
             about that graph. Here, <code>_:data</code> labels the payload
-            graph; the ODRL targets and DPV evidence use that same node in the
-            context graph. The catalogue identifier
-            <code>:cohort-b</code> points to it.
+            graph; the ODRL targets in the policy graph and the DPV evidence in
+            the evidence graph use that same node. The envelope names it with
+            <code>dpv:hasData</code>, and the policy graph links it to its
+            sticky policy with <code>odrl:hasPolicy</code>. The policy, evidence
+            and compliance report each sit in their own blank-node graph, so a
+            signature would cover exactly one graph&rsquo;s contents plus its
+            provenance.
           </p>
           <p>
             The exact N3 rules and proof are also included as text artifacts,
             since N3 formulae are not native TriG syntax. The verifier checks
-            the payload and context as RDF graphs, then replays the saved proof.
-            Renaming blank-node labels does not change that RDF structure. See
-            the
+            the payload, policy, evidence and report as RDF graphs, then replays
+            the saved proof. Renaming blank-node labels does not change that RDF
+            structure. See the
             <a
               href="https://www.w3.org/TR/trig/#sec-graph-statements"
               target="_blank"

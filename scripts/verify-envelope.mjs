@@ -37,13 +37,12 @@ export async function verifyEnvelope(text) {
   const output = run(["rules.n3", "facts.n3"]);
   if (output !== envelope.artifacts.conclusion)
     throw new Error("The recorded conclusion differs from fresh reasoning");
-  const decision = interpret(output).allowed
-    ? "permission-established"
-    : "permission-not-established";
-  if (decision !== envelope.decision)
+  // An envelope exists only for an Active permission; derive that afresh.
+  if (!interpret(output).allowed)
     throw new Error(
-      "The declared decision differs from the derived conclusion",
+      "The fresh derivation does not establish the permission the envelope carries",
     );
+  const decision = "permission-established";
   return { decision, audit };
 }
 
@@ -61,7 +60,7 @@ if (
     );
     console.log(audit);
     console.log(
-      `Verified: ${decision}. The TriG payload and context match the replay sources. This unsigned envelope does not authenticate its issuers.`,
+      `Verified: ${decision}. The TriG payload, policy, evidence and report graphs match the replay sources. This unsigned envelope does not authenticate its issuers.`,
     );
   } catch (error) {
     console.error(error.message);

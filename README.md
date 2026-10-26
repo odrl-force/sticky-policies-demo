@@ -28,39 +28,45 @@ This is a conceptual framing, not a connector integration or implementation of t
 
 1. **Attach a policy.** The hospital pairs a dataset reference with an ODRL policy (`odrl:Set`): scientific research, at most 30 days of retention, and a duty to preserve the policy.
 2. **Check a request.** Adjust the university’s purpose, retention and evidence. Try marketing, consent withdrawal, missing de-identification or declining the onward-sharing policy. Each change runs Eyeron again.
-3. **Share it again.** The partner lab gets a fresh request with no ethics approval of its own. Enable its approval to derive a new agreement that references the original policy.
+3. **Share it again.** The partner lab gets a fresh request with no ethics approval of its own. Enable its approval to derive a new agreement that is derived from the original policy.
 
 **Inspect proof** shows the exact rules, policy and evidence, conclusions, captured N3 proof and verification report. **Recheck proof** checks that same captured proof against its source inputs; it does not substitute a newly generated proof.
 
-**Inspect the TriG** shows the complete trust envelope, and **Download TriG** saves `cohort-b.trust-envelope.trig` with the `application/trig` media type. The payload is native RDF: three entirely invented observations inside a graph named by a blank node. The policy’s ODRL targets and the DPV evidence refer to that same node.
+**Inspect the TriG** shows the complete trust envelope, and **Download TriG** saves `cohort-b.trust-envelope.trig` with the `application/trig` media type. **Download report** saves the FORCE compliance report as Turtle.
+
+## Trust envelope
+
+The export follows the [Trust Envelope](https://w3id.org/trustenvelope) model (Slabbinck et al., WOP 2025): one act of sending one data unit to one recipient, with the policy _instantiated_ for that use and provenance for each. Blank nodes name the graphs, which is the pragmatic way to say exactly which triples a future signature would cover.
 
 ```trig
-@prefix : <https://example.org/access#> .
-@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+:envelope a te:TrustEnvelope;
+  dct:issued "2026-10-26T12:00:00Z"^^xsd:dateTime;
+  dpv:hasData _:data;
+  odrl:hasPolicy :agreement-42;
+  te:provenance :data-provenance, :policy-provenance.
+:data-provenance a te:DataProvenance;
+  te:sender :hospital; eu-dga:hasDataHolder :hospital.
+:policy-provenance a te:PolicyProvenance;
+  te:recipient :university; te:rightsHolder :hospital;
+  :policyGraph _:policy; :evidenceGraph _:evidence; :reportGraph _:report.
 
-:envelope :dataGraph _:data; :contextGraph _:context.
-_:data :stickyPolicy :policy-b.
-
-_:data {
-  :sample-1 :value 12.4 .
-}
-_:context {
-  :policy-b odrl:permission :offered-use .
-  :offered-use odrl:target _:data .
-}
+_:data   { :sample-1 :value 12.4 . }
+_:policy { :offered-use odrl:target _:data .
+           :agreement-42 odrl:assignee :university; prov:wasDerivedFrom :policy-b . }
 ```
 
-This snippet is simplified; the actual export contains the full policy, request, evidence and conclusion, plus a FORCE compliance report and exact N3 replay artifacts. The catalogue identifier `:cohort-b` links to the payload graph with `:dataGraph`. Graph labels such as `_:data` are local identifiers within this RDF dataset, not global identifiers or content hashes. The same label in another downloaded envelope is not automatically the same node.
+This snippet is simplified. The envelope contains:
 
-The envelope contains:
-
-- A default graph with envelope metadata and a link from the payload graph to its sticky policy.
-- A blank-node-named payload graph containing the synthetic observations.
-- A separate context graph containing the native RDF policy, request and evidence, all referring to the payload graph’s blank node.
-- A separate blank-node-named graph containing the N3-derived FORCE compliance report.
-- A separate graph containing the demo agreement and its distinct granted permission, when the permission report is Active. Its target is bound to the same payload graph.
-- A `:complianceReport` link to the policy report, and a `compliance-report.ttl` artifact for inspection.
+- A default graph with the `te:TrustEnvelope`, its two provenance nodes and the demo metadata. `te:sign` is omitted because the demo is unsigned.
+- `_:data`, the payload graph: three entirely invented observations. The envelope names it with `dpv:hasData`; the policy's `odrl:target` and the DPV evidence use the same node.
+- `_:policy`, the hospital's native ODRL policy (an `odrl:Set` linked from the data with `odrl:hasPolicy`) and the derived `odrl:Agreement`, which links back with `prov:wasDerivedFrom`. The agreement is what `odrl:hasPolicy` on the envelope points to, as in the paper.
+- `_:evidence`, the FORCE evaluation request, ODRL request and DPV assertions, in a `sotw:SotW` snapshot.
+- `_:report`, the N3-derived FORCE compliance report, linked with `:complianceReport`.
 - Exact payload/facts/rules/conclusion/report/proof/audit source artifacts with SHA-256 text digests. N3 rules and proofs are RDF string literals because N3 formulae are not native TriG syntax.
+
+Graph labels such as `_:data` are local identifiers within this RDF dataset, not global identifiers or content hashes. The same label in another downloaded envelope is not automatically the same node. A signature would therefore have to cover the RDFC-1.0 canonical form of a graph _together with_ the quads that link it to the envelope.
+
+**Envelopes exist only for Active permissions.** An envelope carries an instantiated policy, so a request whose permission is Inactive gets its compliance report and proof, but no trust envelope.
 
 Check a downloaded envelope independently:
 
@@ -69,7 +75,15 @@ npm ci
 npm run verify -- /path/to/cohort-b.trust-envelope.trig
 ```
 
-The verifier parses TriG with N3.js, checks the source-text digests, and compares the native payload/context and report/decision graphs to the replay artifacts using RDFC-1.0 canonicalization. The comparison binds the payload graph to the policy target and accepts consistent dataset-local blank-node relabeling and RDF reserialization. It then checks the saved proof with Eyeron, derives a fresh conclusion, and compares the declared decision. Hashes and structural checks establish internal consistency; this unsigned envelope does not authenticate its issuer.
+The verifier parses TriG with N3.js, checks the source-text digests and the paper's structure (data and policy provenance, recipient equals the evaluated party and the agreement's assignee), and compares the payload, policy, evidence and report graphs to the replay artifacts using RDFC-1.0 canonicalization. Every blank node in those graphs must be the payload graph's own node. Consistent dataset-local relabeling and RDF reserialization are accepted. It then checks the saved proof with Eyeron and derives a fresh conclusion that must still establish the permission. Hashes and structural checks establish internal consistency; this unsigned envelope does not authenticate its issuer.
+
+## Standards used
+
+**FORCE.** The N3 rules derive a `report:PolicyReport`, a `report:PermissionReport` and nine premise reports (target, action, party and six constraints) from a `sotw:EvaluationRequest` and a `sotw:SotW` snapshot. As the model's README requires, **missing information counts as not satisfied**: the snapshot is a closed world, so a premise with no supporting evidence is `Unsatisfied` and the permission `Inactive`. The negation (`log:notIncludes`) only inspects asserted facts, never derived ones, so it does not depend on rule order. The proof checker records each such absence as a _trusted obligation_; it checks that the conclusion follows from the facts and rules, not that the facts are complete. Evidence arrives as `sotw:context` records linked to their constraint with `sotw:conditionID`, and each constraint's `leftOperand`, `operator` and `rightOperand` must match what the rules evaluate. Not covered: the generic FORCE evaluation of arbitrary policies, duties as pre-conditions (`report:conditionReport`), and the agreement-instantiation algorithm. The onward-sharing duty is not evaluated.
+
+**ODRL.** Policies use `odrl:Set`, `odrl:Request` and `odrl:Agreement` with `odrl:uid`, `odrl:profile`, `odrl:hasPolicy` and `odrl:purpose`. The research profile's own terms (`:retentionDays`, `:matchingConsent` and others, `:preservePolicy`) are declared in the policy graph as `odrl:LeftOperand` and `odrl:Action`, but the profile itself has no published document.
+
+**DPV.** `dpv:Consent` with `hasConsentStatus`, `hasData`, `hasPurpose`, `ScientificResearch`, `Deidentification` and `hasOutcome` are DPV 2 terms. Ethics approval has no core DPV term and is a local `:EthicsApproval`.
 
 ## Publish on GitHub Pages
 

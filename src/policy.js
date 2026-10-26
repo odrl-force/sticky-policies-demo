@@ -8,6 +8,7 @@ export const prefixes = `@prefix : <https://example.org/access#> .
 @prefix report: <https://w3id.org/force/compliance-report#> .
 @prefix sotw: <https://w3id.org/force/sotw#> .
 @prefix dct: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 `;
 
@@ -64,7 +65,8 @@ export const premiseDefinitions = [
     label: "Recipient accepts the attached policy",
   },
 ];
-const basic = `:evaluation-42 a sotw:EvaluationRequest; sotw:evaluatedParty ?who; sotw:evaluatedAction ?action; sotw:evaluatedTarget ?data.
+const evaluation = `:evaluation-42 a sotw:EvaluationRequest; sotw:evaluatedParty ?who; sotw:evaluatedAction ?action; sotw:evaluatedTarget ?data.`;
+const basic = `${evaluation}
 :request-42 odrl:permission :research-use-42.`;
 const requestedPurpose = `:evaluation-42 sotw:requestParameter :purpose-parameter.
 :purpose-parameter sotw:describesFeature odrl:purpose; sotw:value ?purpose.`;
@@ -72,10 +74,17 @@ const satisfied = (id, body) =>
   `{ ${basic}\n${body}\n} => { :${id} report:satisfactionState report:Satisfied. }.\n`;
 const unsatisfied = (id, body) =>
   `{ ${basic}\n${body}\n} => { :${id} report:satisfactionState report:Unsatisfied. }.\n`;
+// FORCE: missing information counts as not satisfied. The snapshot is a closed
+// world, so a premise is Unsatisfied when its complete satisfying pattern is
+// absent. The pattern only uses asserted predicates, never derived ones, so the
+// negation does not depend on the order in which rules fire.
+const absent = (id, pattern) =>
+  `{ :evaluation-42 a sotw:EvaluationRequest.\n?SCOPE log:notIncludes { ${basic}\n${pattern}\n}.\n} => { :${id} report:satisfactionState report:Unsatisfied. }.\n`;
+// Satisfied when the pattern holds; Unsatisfied when it is absent.
+const closed = (id, pattern) => satisfied(id, pattern) + absent(id, pattern);
 
 // All evaluation states are N3 conclusions. JS assembles the program but does
-// not precompute satisfaction or activation. Negative evidence is explicit in
-// the finite, declared SotW snapshot; absent information stays unreported.
+// not precompute satisfaction or activation.
 export const rules = `${prefixes}
 # FORCE report structure and provenance. The compatibility ODRL Request is
 # linked separately from the newer sotw:EvaluationRequest.
@@ -93,60 +102,54 @@ export const rules = `${prefixes}
 }.
 
 # Structural premises: the offered target and action, and the party/request binding.
-${satisfied("target-report", ":offered-use odrl:target ?data. :research-use-42 odrl:target ?data.")}
-${unsatisfied("target-report", ":offered-use odrl:target ?target. ?data log:notEqualTo ?target.")}
-${unsatisfied("target-report", ":research-use-42 odrl:target ?target. ?data log:notEqualTo ?target.")}
-${satisfied("action-report", ":offered-use odrl:action ?action. :research-use-42 odrl:action ?action.")}
-${unsatisfied("action-report", ":offered-use odrl:action ?offered. ?action log:notEqualTo ?offered.")}
-${unsatisfied("action-report", ":research-use-42 odrl:action ?requested. ?action log:notEqualTo ?requested.")}
-${satisfied("party-report", ":research-use-42 odrl:assignee ?who.")}
-${unsatisfied("party-report", ":research-use-42 odrl:assignee ?requested. ?who log:notEqualTo ?requested.")}
+${closed("target-report", ":offered-use odrl:target ?data. :research-use-42 odrl:target ?data.")}
+${closed("action-report", ":offered-use odrl:action ?action. :research-use-42 odrl:action ?action.")}
+${closed("party-report", ":research-use-42 odrl:assignee ?who.")}
 
 # Purpose must match both the policy and the compatibility request.
-${satisfied(
+${closed(
   "purpose-report",
   `${requestedPurpose}
-:offered-purpose odrl:leftOperand odrl:purpose; odrl:operator odrl:eq; odrl:rightOperand ?purpose. :purpose-42 odrl:leftOperand odrl:purpose; odrl:operator odrl:eq; odrl:rightOperand ?purpose.`,
-)}
-${unsatisfied(
-  "purpose-report",
-  `${requestedPurpose}
-:offered-purpose odrl:rightOperand ?offered. ?purpose log:notEqualTo ?offered.`,
-)}
-${unsatisfied(
-  "purpose-report",
-  `${requestedPurpose}
-:purpose-42 odrl:rightOperand ?requested. ?purpose log:notEqualTo ?requested.`,
+:offered-purpose odrl:leftOperand odrl:purpose; odrl:operator odrl:eq; odrl:rightOperand ?purpose.
+:purpose-42 odrl:leftOperand odrl:purpose; odrl:operator odrl:eq; odrl:rightOperand ?purpose.`,
 )}
 
-# Evidence is scoped to the evaluated party, data graph and purpose.
-${satisfied(
+# Evidence comes from sotw:context records, linked to the constraint they
+# support with sotw:conditionID and scoped to the evaluated party, data graph
+# and purpose. The constraint's own operands must say what the rules evaluate.
+${closed(
   "ethics-report",
   `${requestedPurpose}
 :research-use-42 odrl:assignee ?who.
-?who :holdsApproval ?approval. ?approval dpv:hasData ?data; dpv:hasPurpose ?purpose.`,
+:ethics-required odrl:leftOperand :matchingEthicsApproval; odrl:operator odrl:eq; odrl:rightOperand true.
+:world sotw:context ?approval.
+?approval a :EthicsApproval; sotw:conditionID :ethics-required; :approvedParty ?who;
+  dpv:hasData ?data; dpv:hasPurpose ?purpose.`,
 )}
-${unsatisfied("ethics-report", ":world :approvalAvailable false.")}
-${unsatisfied(
-  "ethics-report",
-  `${requestedPurpose}
-?who :holdsApproval ?approval. ?approval dpv:hasData ?data; dpv:hasPurpose ?approved.
-?purpose log:notEqualTo ?approved.`,
-)}
-${satisfied(
+${closed(
   "consent-report",
   `${requestedPurpose}
-:consent-b a dpv:Consent; dpv:hasData ?data; dpv:hasPurpose ?purpose; dpv:hasConsentStatus dpv:ConsentGiven.`,
+:consent-required odrl:leftOperand :matchingConsent; odrl:operator odrl:eq; odrl:rightOperand true.
+:world sotw:context ?consent.
+?consent a dpv:Consent; sotw:conditionID :consent-required; dpv:hasData ?data;
+  dpv:hasPurpose ?purpose; dpv:hasConsentStatus dpv:ConsentGiven.`,
 )}
-${unsatisfied("consent-report", ":consent-b dpv:hasConsentStatus dpv:ConsentWithdrawn.")}
+# A withdrawal for the same data and purpose is explicit negative evidence. If
+# it is contradicted by a given consent, interpretation fails closed.
 ${unsatisfied(
   "consent-report",
   `${requestedPurpose}
-:consent-b dpv:hasData ?data; dpv:hasPurpose ?consented.
-?purpose log:notEqualTo ?consented.`,
+:world sotw:context ?consent.
+?consent a dpv:Consent; sotw:conditionID :consent-required; dpv:hasData ?data;
+  dpv:hasPurpose ?purpose; dpv:hasConsentStatus dpv:ConsentWithdrawn.`,
 )}
-${satisfied("safeguard-report", "?data dpv:hasTechnicalOrganisationalMeasure dpv:Deidentification.")}
-${unsatisfied("safeguard-report", ":world :deidentificationAvailable false.")}
+${closed(
+  "safeguard-report",
+  `:safeguard-required odrl:leftOperand :deidentificationEvidence; odrl:operator odrl:eq; odrl:rightOperand true.
+:world sotw:context ?safeguard.
+?safeguard a :SafeguardRecord; sotw:conditionID :safeguard-required; dpv:hasData ?data;
+  dpv:hasTechnicalOrganisationalMeasure dpv:Deidentification.`,
+)}
 
 # The profile interprets the custom retentionDays operand as whole days.
 ${satisfied(
@@ -154,7 +157,8 @@ ${satisfied(
   `:evaluation-42 sotw:requestParameter :retention-parameter.
 :retention-parameter sotw:describesFeature :retentionDays; sotw:value ?days.
 :research-use-42 :retentionDays ?days.
-:retention-limit odrl:operator odrl:lteq; odrl:rightOperand ?max. ?days math:notGreaterThan ?max.`,
+:retention-limit odrl:leftOperand :retentionDays; odrl:operator odrl:lteq; odrl:rightOperand ?max.
+?days math:notGreaterThan ?max.`,
 )}
 ${unsatisfied(
   "retention-report",
@@ -168,10 +172,27 @@ ${unsatisfied(
 :research-use-42 :retentionDays ?requested.
 ?days log:notEqualTo ?requested.`,
 )}
+# Missing or unsupported retention information is not a satisfied premise.
+${absent(
+  "retention-report",
+  `:evaluation-42 sotw:requestParameter ?parameter.
+?parameter sotw:describesFeature :retentionDays; sotw:value ?days.`,
+)}
+${absent("retention-report", ":research-use-42 :retentionDays ?days.")}
+${absent(
+  "retention-report",
+  ":retention-limit odrl:leftOperand :retentionDays; odrl:operator odrl:lteq; odrl:rightOperand ?max.",
+)}
 
 # Acceptance is a precondition. Actual onward policy preservation is NOT inferred.
-${satisfied("acceptance-report", ":research-use-42 :acceptsPolicy ?policy. ?data :stickyPolicy ?policy.")}
-${unsatisfied("acceptance-report", ":world :policyAccepted false.")}
+${closed(
+  "acceptance-report",
+  `:acceptance-required odrl:leftOperand :policyAcceptance; odrl:operator odrl:eq; odrl:rightOperand true.
+:world sotw:context ?acceptance.
+?acceptance a :PolicyAcceptance; sotw:conditionID :acceptance-required; :acceptedBy ?who;
+  :acceptedPolicy ?policy.
+?data odrl:hasPolicy ?policy.`,
+)}
 
 # FORCE activation is the conjunction of all premises, not an agreement lookup.
 {
@@ -208,12 +229,12 @@ ${["target-report", "action-report", "party-report"]
   :permission-report report:activationState report:Active.
   :evaluation-42 sotw:evaluatedParty ?who; sotw:evaluatedTarget ?data; sotw:evaluatedAction ?action.
   :research-use-42 odrl:assigner ?holder; :retentionDays ?days.
-  ?data :stickyPolicy ?policy.
+  ?data odrl:hasPolicy ?policy.
 } => {
-  :agreement-42 a odrl:Agreement; odrl:profile :research-profile;
+  :agreement-42 a odrl:Agreement; odrl:uid :agreement-42; odrl:profile :research-profile;
     odrl:assigner ?holder; odrl:assignee ?who; odrl:permission :granted-use-42;
-    odrl:obligation :carry-policy; :inheritsPolicy ?policy;
-    dct:references :policy-b, :request-42, :policy-report.
+    odrl:obligation :carry-policy; prov:wasDerivedFrom ?policy;
+    dct:references :request-42, :policy-report.
   :granted-use-42 a odrl:Permission; odrl:assigner ?holder; odrl:assignee ?who;
     odrl:target ?data; odrl:action ?action; :retentionDays ?days;
     odrl:constraint :offered-purpose, :retention-limit, :ethics-required,
@@ -231,33 +252,15 @@ export const defaultState = {
   carry: true,
   recipient: "university",
 };
-export function createFacts(state) {
-  if (
-    !["ScientificResearch", "Marketing"].includes(state.purpose) ||
-    !["university", "partner-lab"].includes(state.recipient) ||
-    !Number.isInteger(state.days) ||
-    state.days < 1 ||
-    state.days > 90 ||
-    ["approval", "consent", "deidentified", "carry"].some(
-      (key) => typeof state[key] !== "boolean",
-    )
-  )
-    throw new Error("Invalid request");
-  return `${prefixes}
-# One fixed illustrative snapshot; no inference depends on the host clock.
-:world a sotw:SotW; dct:issued "2026-10-26T09:00:00Z"^^xsd:dateTime;
-  sotw:context :consent-b, :safeguard-record, :approval-record, :acceptance-record;
-  :approvalAvailable ${state.approval}; :deidentificationAvailable ${state.deidentified};
-  :policyAccepted ${state.carry}; :usePerformance report:Unknown.
-:approval-record :available ${state.approval}; sotw:conditionID :ethics-required.
-:safeguard-record :available ${state.deidentified}; sotw:conditionID :safeguard-required.
-:acceptance-record :accepted ${state.carry}; sotw:conditionID :acceptance-required.
-:consent-b sotw:conditionID :consent-required.
 
+// The native policy graph of the trust envelope: the hospital's ODRL policy and
+// the vocabulary its profile defines. _:data is both the payload graph's label
+// and the Asset these rules target.
+export const policyFacts = `
 # The same blank node labels the native payload graph in the TriG envelope.
-:cohort-b :dataGraph _:data.
-_:data :stickyPolicy :policy-b.
-:policy-b a odrl:Set; odrl:profile :research-profile;
+:cohort-b dpv:hasData _:data.
+_:data a odrl:Asset, dpv:Data; odrl:hasPolicy :policy-b.
+:policy-b a odrl:Set; odrl:uid :policy-b; odrl:profile :research-profile;
   odrl:permission :offered-use; odrl:obligation :carry-policy.
 :offered-use a odrl:Permission; odrl:assigner :hospital;
   odrl:target _:data; odrl:action odrl:use;
@@ -276,6 +279,70 @@ _:data :stickyPolicy :policy-b.
   odrl:constraint :onward-sharing-trigger.
 :onward-sharing-trigger a odrl:Constraint; odrl:leftOperand :onwardSharing;
   odrl:operator odrl:eq; odrl:rightOperand true.
+# Terms defined by the research profile.
+:retentionDays a odrl:LeftOperand.
+:matchingEthicsApproval a odrl:LeftOperand.
+:matchingConsent a odrl:LeftOperand.
+:deidentificationEvidence a odrl:LeftOperand.
+:policyAcceptance a odrl:LeftOperand.
+:onwardSharing a odrl:LeftOperand.
+:preservePolicy a odrl:Action.
+`;
+
+function validate(state) {
+  if (
+    !["ScientificResearch", "Marketing"].includes(state.purpose) ||
+    !["university", "partner-lab"].includes(state.recipient) ||
+    !Number.isInteger(state.days) ||
+    state.days < 1 ||
+    state.days > 90 ||
+    ["approval", "consent", "deidentified", "carry"].some(
+      (key) => typeof state[key] !== "boolean",
+    )
+  )
+    throw new Error("Invalid request");
+}
+
+// The request and the supporting evidence about the evaluated party. The
+// snapshot is closed: evidence that is not listed here is absent, and FORCE
+// treats absent information as not satisfied.
+export function createEvidence(state) {
+  validate(state);
+  const context = [
+    ":consent-b",
+    ...(state.approval ? [":eth-2026-118"] : []),
+    ...(state.deidentified ? [":safeguard-record"] : []),
+    ...(state.carry ? [":acceptance-record"] : []),
+  ];
+  return `
+# One fixed illustrative snapshot; no inference depends on the host clock.
+:world a sotw:SotW; dct:issued "2026-10-26T09:00:00Z"^^xsd:dateTime;
+  sotw:context ${context.join(", ")};
+  :usePerformance report:Unknown.
+
+# Illustrative DPV assertions, not authenticated attestations.
+:consent-b a dpv:Consent; sotw:conditionID :consent-required;
+  dpv:hasData _:data; dpv:hasPurpose dpv:ScientificResearch;
+  dpv:hasConsentStatus dpv:${state.consent ? "ConsentGiven" : "ConsentWithdrawn"}.
+${
+  state.approval
+    ? `:eth-2026-118 a :EthicsApproval; sotw:conditionID :ethics-required;
+  :approvedParty :${state.recipient};
+  dpv:hasData _:data; dpv:hasPurpose dpv:ScientificResearch.`
+    : "# No ethics approval supplied for this recipient."
+}
+${
+  state.deidentified
+    ? `:safeguard-record a :SafeguardRecord; sotw:conditionID :safeguard-required;
+  dpv:hasData _:data; dpv:hasTechnicalOrganisationalMeasure dpv:Deidentification.`
+    : "# No de-identification evidence supplied."
+}
+${
+  state.carry
+    ? `:acceptance-record a :PolicyAcceptance; sotw:conditionID :acceptance-required;
+  :acceptedBy :${state.recipient}; :acceptedPolicy :policy-b.`
+    : "# Recipient has not accepted the attached policy."
+}
 
 # FORCE evaluation input plus an ODRL Request for report-model compatibility.
 :evaluation-42 a sotw:EvaluationRequest; sotw:evaluatedParty :${state.recipient};
@@ -291,19 +358,10 @@ _:data :stickyPolicy :policy-b.
   odrl:constraint :purpose-42; :retentionDays ${state.days}.
 :purpose-42 a odrl:Constraint; odrl:leftOperand odrl:purpose; odrl:operator odrl:eq;
   odrl:rightOperand dpv:${state.purpose}.
-
-# Illustrative DPV assertions, not authenticated attestations.
-${
-  state.approval
-    ? `:${state.recipient} :holdsApproval :eth-2026-118.
-:eth-2026-118 dpv:hasData _:data; dpv:hasPurpose dpv:ScientificResearch.`
-    : "# No ethics approval supplied for this recipient."
-}
-:consent-b a dpv:Consent; dpv:hasData _:data; dpv:hasPurpose dpv:ScientificResearch;
-  dpv:hasConsentStatus dpv:${state.consent ? "ConsentGiven" : "ConsentWithdrawn"}.
-${state.deidentified ? "_:data dpv:hasTechnicalOrganisationalMeasure dpv:Deidentification." : "# No de-identification evidence supplied."}
-${state.carry ? ":research-use-42 :acceptsPolicy :policy-b." : "# Recipient has not accepted the attached policy."}
 `;
+}
+export function createFacts(state) {
+  return `${prefixes}${policyFacts}${createEvidence(state)}`;
 }
 
 // Parse actual RDF terms. Prefix aliases, comments and literal text cannot

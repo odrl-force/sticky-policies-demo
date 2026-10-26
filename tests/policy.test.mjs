@@ -44,7 +44,7 @@ test("Research derives an ODRL agreement with the original sticky policy", () =>
     true,
     true,
   ]);
-  assert.match(result.output, /:agreement-42 :inheritsPolicy :policy-b/);
+  assert.match(result.output, /:agreement-42 prov:wasDerivedFrom :policy-b/);
 });
 test("All combinations of evidence, purpose, retention and recipient require the full conjunction", () => {
   let combinations = 0;
@@ -83,13 +83,29 @@ test("All combinations of evidence, purpose, retention and recipient require the
   assert.equal(combinations, 192);
 });
 test("New recipient cannot reuse the university approval", () => {
+  const facts = createFacts({
+    ...defaultState,
+    recipient: "partner-lab",
+  }).replace(":approvedParty :partner-lab", ":approvedParty :university");
+  const result = interpret(execute(facts).output);
+  assert.equal(result.allowed, false);
+  assert.equal(
+    result.premises.find((p) => p.id === "ethics-report").state,
+    "Unsatisfied",
+  );
+  assert.equal(result.checks[0], false);
+});
+test("A request permission naming another assignee does not match the evaluated party", () => {
   const facts = createFacts(defaultState).replace(
     "odrl:assignee :university",
     "odrl:assignee :partner-lab",
   );
   const result = interpret(execute(facts).output);
   assert.equal(result.allowed, false);
-  assert.equal(result.checks[0], false);
+  assert.equal(
+    result.premises.find((p) => p.id === "party-report").state,
+    "Unsatisfied",
+  );
 });
 test("The attached policy purpose still constrains claims of marketing approval and consent", () => {
   const facts = createFacts(defaultState)
@@ -170,18 +186,114 @@ test("Explicit failed premises produce an Inactive report, not a prohibition or 
   assert.equal(result.performance, "Unknown");
   assert.equal(result.deontic, "NonSet");
 });
-test("A missing ethics assertion without a negative snapshot statement stays unreported", () => {
-  const facts = createFacts({ ...defaultState, approval: false }).replace(
-    ":approvalAvailable false;",
-    "",
+test("Missing information counts as not satisfied, as FORCE specifies", () => {
+  const state = (id, facts) =>
+    interpret(execute(facts).output).premises.find((p) => p.id === id).state;
+  const base = createFacts(defaultState);
+  for (const [id, facts] of [
+    ["ethics-report", createFacts({ ...defaultState, approval: false })],
+    ["safeguard-report", createFacts({ ...defaultState, deidentified: false })],
+    ["acceptance-report", createFacts({ ...defaultState, carry: false })],
+    [
+      "purpose-report",
+      base.replace(
+        "sotw:requestParameter :purpose-parameter, :retention-parameter.",
+        "sotw:requestParameter :retention-parameter.",
+      ),
+    ],
+    [
+      "retention-report",
+      base.replace(
+        "sotw:requestParameter :purpose-parameter, :retention-parameter.",
+        "sotw:requestParameter :purpose-parameter.",
+      ),
+    ],
+    [
+      "consent-report",
+      base.replace("sotw:context :consent-b,", "sotw:context"),
+    ],
+  ])
+    assert.equal(state(id, facts), "Unsatisfied", id);
+  const result = interpret(
+    execute(createFacts({ ...defaultState, approval: false })).output,
   );
-  const result = interpret(execute(facts).output);
-  assert.equal(
-    result.premises.find((p) => p.id === "ethics-report").state,
-    "NotReported",
-  );
-  assert.equal(result.activation, "NotReported");
+  assert.equal(result.activation, "Inactive");
   assert.equal(result.allowed, false);
+});
+test("Evidence only counts when the SotW lists it and it names the constraint it supports", () => {
+  const base = createFacts(defaultState);
+  const ethics = (facts) =>
+    interpret(execute(facts).output).premises.find(
+      (p) => p.id === "ethics-report",
+    ).state;
+  assert.equal(ethics(base), "Satisfied");
+  assert.equal(
+    ethics(base.replace(":consent-b, :eth-2026-118", ":consent-b")),
+    "Unsatisfied",
+  );
+  assert.equal(
+    ethics(
+      base.replace(
+        "sotw:conditionID :ethics-required;\n  :approvedParty",
+        "sotw:conditionID :consent-required;\n  :approvedParty",
+      ),
+    ),
+    "Unsatisfied",
+  );
+});
+test("The policy's constraint operands decide what is evaluated", () => {
+  const base = createFacts(defaultState);
+  const state = (id, facts) =>
+    interpret(execute(facts).output).premises.find((p) => p.id === id).state;
+  for (const [id, original, changed] of [
+    [
+      "ethics-report",
+      ":ethics-required a odrl:Constraint; odrl:leftOperand :matchingEthicsApproval;",
+      ":ethics-required a odrl:Constraint; odrl:leftOperand :somethingElse;",
+    ],
+    [
+      "consent-report",
+      ":consent-required a odrl:Constraint; odrl:leftOperand :matchingConsent; odrl:operator odrl:eq; odrl:rightOperand true.",
+      ":consent-required a odrl:Constraint; odrl:leftOperand :matchingConsent; odrl:operator odrl:eq; odrl:rightOperand false.",
+    ],
+    [
+      "safeguard-report",
+      ":safeguard-required a odrl:Constraint; odrl:leftOperand :deidentificationEvidence; odrl:operator odrl:eq;",
+      ":safeguard-required a odrl:Constraint; odrl:leftOperand :deidentificationEvidence; odrl:operator odrl:neq;",
+    ],
+    [
+      "retention-report",
+      "odrl:operator odrl:lteq; odrl:rightOperand 30.",
+      "odrl:operator odrl:eq; odrl:rightOperand 30.",
+    ],
+  ]) {
+    assert.ok(base.includes(original), id);
+    assert.equal(state(id, base), "Satisfied");
+    assert.equal(state(id, base.replace(original, changed)), "Unsatisfied", id);
+  }
+});
+test("Withdrawn consent is explicit negative evidence", () => {
+  const result = reason({ consent: false });
+  assert.equal(
+    result.premises.find((p) => p.id === "consent-report").state,
+    "Unsatisfied",
+  );
+});
+test("The saved proof of a denial fails once the missing evidence is supplied", () => {
+  const denied = createFacts({ ...defaultState, approval: false });
+  const proof = execute(denied, ["--proof"]).output;
+  assert.equal(
+    execute(denied, ["--check-proof", "decision.proof.n3"], proof).report.ok,
+    true,
+  );
+  assert.equal(
+    execute(
+      createFacts(defaultState),
+      ["--check-proof", "decision.proof.n3"],
+      proof,
+    ).report.ok,
+    false,
+  );
 });
 test("Changing the FORCE action, target or party blocks activation", () => {
   for (const [original, changed] of [
@@ -199,8 +311,8 @@ test("Changing the FORCE action, target or party blocks activation", () => {
 });
 test("Contradictory snapshot evidence cannot produce a usable permission", () => {
   const contradictory = createFacts(defaultState).replace(
-    ":approvalAvailable true;",
-    ":approvalAvailable false;",
+    "dpv:hasConsentStatus dpv:ConsentGiven.",
+    "dpv:hasConsentStatus dpv:ConsentGiven, dpv:ConsentWithdrawn.",
   );
   assert.throws(
     () => interpret(execute(contradictory).output),
@@ -243,5 +355,11 @@ test("An unsupported purpose operator cannot yield an active permission", () => 
     "odrl:operator odrl:eq; odrl:rightOperand dpv:ScientificResearch.",
     "odrl:operator odrl:neq; odrl:rightOperand dpv:ScientificResearch.",
   );
-  assert.equal(interpret(execute(facts).output).allowed, false);
+  const result = interpret(execute(facts).output);
+  assert.equal(result.allowed, false);
+  assert.equal(result.activation, "Inactive");
+  assert.equal(
+    result.premises.find((p) => p.id === "purpose-report").state,
+    "Unsatisfied",
+  );
 });
