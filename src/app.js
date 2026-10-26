@@ -1,5 +1,6 @@
 import { rules, createFacts, defaultState, interpret } from "./policy.js";
 import { createEnvelope } from "./envelope.js";
+import { complianceReport } from "./report.js";
 
 const $ = (id) => document.getElementById(id);
 let state = { ...defaultState };
@@ -93,12 +94,20 @@ function setPending() {
     "Eyeron is deriving the consequences of your request.";
   $("decision-symbol").textContent = "⋯";
   $("checks").replaceChildren();
+  for (const id of [
+    "force-activation",
+    "force-attempt",
+    "force-performance",
+    "force-deontic",
+  ])
+    $(id).textContent = "…";
   $("proof-status").textContent = "Running N3 rules…";
   $("run-time").textContent = "In your browser";
   $("download-hint").textContent = "Preparing the current decision…";
   for (const id of [
     "download-envelope",
     "inspect-envelope",
+    "inspect-report",
     "inspect-proof",
     "recheck-proof",
   ])
@@ -137,6 +146,7 @@ async function run(token) {
       ...interpret(conclusion.output),
       elapsed: Math.round(performance.now() - start),
     };
+    result.compliance = await complianceReport(result.output);
     result.envelope = await createEnvelope(result, engineVersion);
     if (token !== revision) return;
     current = result;
@@ -145,6 +155,7 @@ async function run(token) {
     for (const id of [
       "download-envelope",
       "inspect-envelope",
+      "inspect-report",
       "inspect-proof",
       "recheck-proof",
     ])
@@ -164,13 +175,6 @@ async function run(token) {
     renderCode();
   }
 }
-const checkLabels = [
-  ["Ethics approval matches this use", "No matching ethics approval"],
-  ["Consent covers this purpose", "Consent does not establish this use"],
-  ["De-identification evidence supplied", "De-identification evidence missing"],
-  ["Retention is within 30 days", "Retention exceeds the policy limit"],
-  ["Recipient accepts the sticky policy", "The sticky policy was not accepted"],
-];
 function renderExchangeStatus() {
   if (stage === 1) {
     $("exchange-status").textContent =
@@ -187,29 +191,62 @@ function renderExchangeStatus() {
 function renderDecision() {
   renderExchangeStatus();
   if (!current) return;
-  const { allowed, checks, audit, elapsed } = current;
+  const {
+    allowed,
+    activation,
+    attempt,
+    performance,
+    deontic,
+    premises,
+    audit,
+    elapsed,
+  } = current;
   const card = document.querySelector(".decision-card");
   card.classList.toggle("blocked", !allowed);
   card.setAttribute("aria-busy", "false");
   $("decision-symbol").textContent = allowed ? "✓" : "⤫";
-  $("decision-title").textContent = allowed
-    ? "Permission established."
-    : "Permission not established.";
+  $("decision-title").textContent =
+    activation === "Active"
+      ? "Permission active."
+      : activation === "Inactive"
+        ? "Permission inactive."
+        : "Evaluation incomplete.";
   $("decision-description").textContent = allowed
-    ? "All conditions are supported. Eyeron derived an ODRL agreement for this recipient and this use."
-    : "The rules could not derive an agreement for this request. Resolve the missing conditions and try again.";
+    ? "All premises are satisfied in this snapshot. FORCE reports the permission as Active; a separate demo rule constructs the agreement."
+    : activation === "Inactive"
+      ? "At least one premise is Unsatisfied in this snapshot. FORCE reports the permission as Inactive, so the demo constructs no agreement."
+      : "Some premises have no reported state. No active permission or agreement has been established.";
+  for (const [id, value] of [
+    ["force-activation", activation],
+    ["force-attempt", attempt],
+    ["force-performance", performance],
+    ["force-deontic", deontic],
+  ]) {
+    $(id).textContent = value === "NonSet" ? "Not determined (NonSet)" : value;
+    $(id).dataset.forceState = value;
+  }
   $("checks").replaceChildren(
-    ...checks.map((passed, index) => {
+    ...premises.map((premise) => {
       const li = document.createElement("li");
-      if (!passed) li.className = "failed";
+      if (premise.state === "Unsatisfied") li.className = "failed";
+      else if (premise.state === "NotReported") li.className = "unreported";
       const mark = document.createElement("span");
       mark.className = "check-mark";
       mark.setAttribute("aria-hidden", "true");
-      mark.textContent = passed ? "✓" : "–";
-      li.append(
-        mark,
-        document.createTextNode(checkLabels[index][passed ? 0 : 1]),
-      );
+      mark.textContent =
+        premise.state === "Satisfied"
+          ? "✓"
+          : premise.state === "Unsatisfied"
+            ? "–"
+            : "?";
+      const label = document.createElement("span");
+      label.className = "premise-label";
+      label.textContent = premise.label;
+      const status = document.createElement("span");
+      status.className = "premise-state";
+      status.textContent =
+        premise.state === "NotReported" ? "Not reported" : premise.state;
+      li.append(mark, label, status);
       return li;
     }),
   );
@@ -220,9 +257,9 @@ function renderDecision() {
   $("run-time").textContent = `${elapsed} ms · WASM`;
   $("logic-note").textContent = allowed
     ? stage === 3
-      ? "New recipient, fresh decision. The partner’s agreement still points to the hospital’s original policy."
-      : "The permission is a conclusion, not a checkbox. Change a fact and Eyeron derives a fresh result."
-    : "No agreement is not the same as a prohibition: the supplied evidence has not established permission under these rules.";
+      ? "New recipient, fresh FORCE evaluation. An active permission supports a new demo agreement under the original policy."
+      : "The report is derived by N3 rules. Attempted means a matching request exists; it does not mean the data was used."
+    : "An inactive permission is not a prohibition. Unknown performance means the demo cannot conclude fulfilment or a violation.";
 }
 function syncForm() {
   $("purpose").value = state.purpose;
@@ -240,7 +277,7 @@ const story = {
   ],
   2: [
     "2. Does the researcher’s request meet the conditions?",
-    "The university is a data consumer. At this exchange boundary, its connector could submit a request and evidence to a policy decision component. Try changing the inputs to that decision below.",
+    "The university is a data consumer. At this exchange boundary, its connector could submit a FORCE evaluation request and DPV context. Change the inputs below and inspect the N3-derived compliance report.",
     "A request proposes a use. Only a supported conclusion establishes the permission.",
     "Pass the data on",
   ],
@@ -352,6 +389,7 @@ document.querySelectorAll("[data-preset]").forEach((button) =>
 
 const fileNames = {
   envelope: "cohort-b.trust-envelope.trig",
+  compliance: "compliance-report.ttl",
   rules: "rules.n3",
   facts: "facts.n3",
   output: "decision.n3",
@@ -389,6 +427,9 @@ function openInspector(tab) {
 }
 $("open-inspector").addEventListener("click", () => openInspector("rules"));
 $("inspect-policy").addEventListener("click", () => openInspector("facts"));
+$("inspect-report").addEventListener("click", () =>
+  openInspector("compliance"),
+);
 $("inspect-envelope").addEventListener("click", () =>
   openInspector("envelope"),
 );

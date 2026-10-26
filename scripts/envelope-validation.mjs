@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Parser, Store, DataFactory } from "n3";
 import canonize from "rdf-canonize";
 import { envelopeFormat } from "../src/envelope.js";
+import { partitionConclusion } from "../src/report.js";
 
 const { namedNode, blankNode, defaultGraph, quad } = DataFactory;
 const ns = "https://example.org/access#";
@@ -43,12 +44,20 @@ export async function readEnvelope(text) {
   const data = one(root, "dataGraph");
   const context = one(root, "contextGraph");
   const decisionGraph = one(root, "decisionGraph");
-  for (const term of [data, context, decisionGraph])
+  const reportGraph = one(root, "reportGraph");
+  if (!one(root, "complianceReport").equals(ex("policy-report")))
+    throw new Error("Invalid compliance report reference");
+  for (const term of [data, context, decisionGraph, reportGraph])
     if (term.termType !== "BlankNode")
       throw new Error("The envelope graphs must be named by blank nodes");
-  if (new Set([data.value, context.value, decisionGraph.value]).size !== 3)
-    throw new Error("Payload, context and decision graphs must be distinct");
-  const graphs = [data, context, decisionGraph];
+  if (
+    new Set([data.value, context.value, decisionGraph.value, reportGraph.value])
+      .size !== 4
+  )
+    throw new Error(
+      "Payload, context, decision and report graphs must be distinct",
+    );
+  const graphs = [data, context, decisionGraph, reportGraph];
   for (const q of store)
     if (
       q.graph.termType !== "DefaultGraph" &&
@@ -61,6 +70,7 @@ export async function readEnvelope(text) {
     "facts",
     "rules",
     "conclusion",
+    "report",
     "proof",
     "audit",
   ]) {
@@ -117,14 +127,35 @@ export async function readEnvelope(text) {
     throw new Error(
       "Payload or context graph differs from the source artifacts, or the policy targets a different graph",
     );
-  const nativeConclusion = asDefault(
+  const nativeReport = asDefault(store.getQuads(null, null, null, reportGraph));
+  const nativeDecision = asDefault(
     store.getQuads(null, null, null, decisionGraph),
   );
+  const expectedConclusion = partitionConclusion(artifacts.conclusion, data);
   if (
-    (await canonical(nativeConclusion)) !==
-    (await canonical(parse(artifacts.conclusion)))
+    (await canonical(nativeReport)) !==
+      (await canonical(expectedConclusion.reports)) ||
+    (await canonical(nativeReport)) !==
+      (await canonical(parse(artifacts.report)))
+  )
+    throw new Error(
+      "FORCE report graph differs from the derived compliance report",
+    );
+  if (
+    (await canonical(nativeDecision)) !==
+    (await canonical(expectedConclusion.decisions))
   )
     throw new Error("Decision graph differs from the recorded conclusion");
+  const grantTargets = store.getObjects(
+    ex("granted-use-42"),
+    targetPredicate,
+    decisionGraph,
+  );
+  if (
+    grantTargets.length &&
+    (grantTargets.length !== 1 || !grantTargets[0].equals(data))
+  )
+    throw new Error("Agreement targets a different payload graph");
   const decision = one(root, "decision");
   if (
     decision.termType !== "NamedNode" ||

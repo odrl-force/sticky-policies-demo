@@ -75,7 +75,7 @@
           </div>
           <div class="diagram-arrow" aria-hidden="true">↓</div>
           <div class="diagram-result">
-            A decision <span>with a proof you can inspect</span>
+            A compliance report <span>with a proof you can inspect</span>
           </div>
           <figcaption>
             The idea: keep the conditions and the reasons with the data.
@@ -264,7 +264,7 @@
               <form id="request-form" class="request-card">
                 <div class="request-card-top">
                   <h4 id="request-title">The university’s request</h4>
-                  <span class="tag">ODRL REQUEST</span>
+                  <span class="tag">FORCE INPUT</span>
                 </div>
                 <label class="field-label" for="purpose"
                   >What will the data be used for?</label
@@ -330,7 +330,8 @@
                     ><span
                       ><b>Carry the policy forward</b
                       ><small
-                        >Accept the same conditions for further sharing</small
+                        >A commitment; actual onward sharing is not
+                        observed</small
                       ></span
                     ><input
                       type="checkbox"
@@ -352,16 +353,43 @@
                 <p id="decision-description">
                   The N3 rules are evaluating this request.
                 </p>
+                <dl class="force-states" aria-label="FORCE permission states">
+                  <div>
+                    <dt>Activation</dt>
+                    <dd id="force-activation">…</dd>
+                  </div>
+                  <div>
+                    <dt>Request</dt>
+                    <dd id="force-attempt">…</dd>
+                  </div>
+                  <div>
+                    <dt>Use performed?</dt>
+                    <dd id="force-performance">…</dd>
+                  </div>
+                  <div>
+                    <dt>Fulfilment</dt>
+                    <dd id="force-deontic">…</dd>
+                  </div>
+                </dl>
                 <ul id="checks" class="checks"></ul>
+                <p class="force-duty-note">
+                  Onward-sharing duty: not evaluated. Accepting the policy does
+                  not establish that it has been preserved in practice.
+                </p>
                 <div class="decision-top">
                   <span><span class="live-dot"></span> Reasoned by Eyeron</span
                   ><span id="run-time">In your browser</span>
                 </div>
                 <div class="decision-bottom">
-                  <span id="proof-status">Loading the reasoner…</span
-                  ><button class="proof-link" id="inspect-proof" disabled>
-                    Inspect proof ↗
-                  </button>
+                  <span id="proof-status">Loading the reasoner…</span>
+                  <div class="decision-links">
+                    <button class="proof-link" id="inspect-report" disabled>
+                      FORCE report ↗
+                    </button>
+                    <button class="proof-link" id="inspect-proof" disabled>
+                      Inspect proof ↗
+                    </button>
+                  </div>
                 </div>
               </section>
             </div>
@@ -446,8 +474,8 @@ _:context {
           <div class="stack-row">
             <span class="stack-num">04</span>
             <div>
-              <b>The decision + its proof</b
-              ><span>A derivation the recipient can check</span>
+              <b>The FORCE compliance report + proof</b
+              ><span>Premise states, activation and the N3 derivation</span>
             </div>
             <span class="mini-tag">N3</span>
           </div>
@@ -495,8 +523,8 @@ _:context {
             <span class="explain-icon">∴</span>
             <h3>N3: the rules</h3>
             <p>
-              Eyeron applies formal Notation3 rules to the facts, derives an
-              agreement when supported, and checks the proof.
+              Eyeron applies formal Notation3 rules to the facts, derives the
+              FORCE compliance report, and checks the N3 proof.
             </p>
             <a
               href="https://github.com/eyereasoner/eyeron"
@@ -506,6 +534,48 @@ _:context {
             >
           </article>
         </div>
+        <details class="force-boundary">
+          <summary>What does this demo use from FORCE?</summary>
+          <p>
+            The N3 program evaluates one policy and a
+            <code>sotw:EvaluationRequest</code> against a declared
+            <code>sotw:SotW</code> snapshot. It derives a
+            <code>report:PolicyReport</code>, a
+            <code>report:PermissionReport</code> and nine premise reports for
+            target, action, party and the six constraints. The interface reads
+            those RDF report states directly.
+          </p>
+          <p>
+            All premises must be Satisfied for Active. An Unsatisfied premise
+            makes the permission Inactive. The current snapshot supplies
+            explicit negative evidence; missing information without a declared
+            status is left unreported. A matching request is Attempted. There
+            are no action observations, so performance is Unknown and the
+            deontic state is NonSet. The future onward-sharing duty is not
+            evaluated.
+          </p>
+          <p>
+            This is a documented FORCE-based subset for this research profile,
+            not a general FORCE evaluator. Agreement construction is a separate
+            demo rule, not the full agreement-instantiation algorithm. See
+            <a href="https://w3id.org/force" target="_blank" rel="noreferrer"
+              >FORCE</a
+            >, its
+            <a
+              href="https://w3id.org/force/compliance-report"
+              target="_blank"
+              rel="noreferrer"
+              >compliance report vocabulary</a
+            >
+            and
+            <a
+              href="https://spec.knows.idlab.ugent.be/sotw/latest/"
+              target="_blank"
+              rel="noreferrer"
+              >contextual input model</a
+            >.
+          </p>
+        </details>
         <details class="dataspace-boundary">
           <summary>How does the TriG envelope refer to its data?</summary>
           <p>

@@ -1456,3 +1456,69 @@ pre {
 .envelope-stack {
   min-width: 0;
 }
+
+.force-states {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 14px 0;
+  border-top: 1px solid #cdd7e5;
+  border-bottom: 1px solid #cdd7e5;
+}
+.force-states dt {
+  font-size: 10px;
+  color: var(--muted);
+}
+.force-states dd {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+.checks {
+  gap: 8px;
+}
+.premise-label {
+  flex: 1;
+}
+.premise-state {
+  font-size: 9px;
+  white-space: nowrap;
+  padding-top: 2px;
+  color: #60758c;
+}
+.failed .premise-state {
+  color: #89561f;
+}
+.unreported {
+  color: var(--muted);
+}
+.decision-card > .force-duty-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #cdd7e5;
+}
+.decision-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.decision-bottom {
+  flex-wrap: wrap;
+}
+.force-boundary {
+  border-top: 1px dashed var(--line);
+  padding: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.force-boundary summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 500;
+}
+.force-boundary p {
+  margin-top: 12px;
+}

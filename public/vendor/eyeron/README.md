@@ -7,7 +7,7 @@ Eyeron **0.8.21**, retrieved on 2026-10-26 from:
 
 Upstream project: https://github.com/eyereasoner/eyeron
 
-The MIT license is included as `LICENSE.md`. The application rules in `src/policy.js` adapt the upstream `examples/verifiable-decision.n3` example, with additional demo-specific retention and policy-preservation rules.
+The MIT license is included as `LICENSE.md`. The application rules in `src/policy.js` adapt the upstream `examples/verifiable-decision.n3` example into a FORCE-based research-profile evaluator, with retention and policy-acceptance constraints and separate demo agreement construction.
 
 SHA-256 of the vendored runtime:
 

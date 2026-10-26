@@ -183,3 +183,49 @@ test("A request without consent still exports a verifiable no-grant envelope", a
     "permission-not-established",
   );
 });
+
+test("The envelope carries a native FORCE report and the grant targets the original payload graph", () => {
+  const store = new Store(parse(exported));
+  const data = graph(store, "dataGraph");
+  const reports = graph(store, "reportGraph");
+  const decisions = graph(store, "decisionGraph");
+  const force = (local) =>
+    namedNode("https://w3id.org/force/compliance-report#" + local);
+  assert.equal(reports.termType, "BlankNode");
+  assert.ok(
+    store
+      .getObjects(ex("permission-report"), force("activationState"), reports)[0]
+      .equals(force("Active")),
+  );
+  assert.equal(
+    store.getObjects(ex("permission-report"), force("premiseReport"), reports)
+      .length,
+    9,
+  );
+  assert.ok(
+    store
+      .getObjects(ex("granted-use-42"), odrl("target"), decisions)[0]
+      .equals(data),
+  );
+});
+test("Changing the native FORCE report cannot substitute for a derived report", async () => {
+  const store = new Store(parse(exported));
+  const reports = graph(store, "reportGraph");
+  const predicate = namedNode(
+    "https://w3id.org/force/compliance-report#activationState",
+  );
+  const changed = [...store].map((q) =>
+    q.graph.equals(reports) && q.predicate.equals(predicate)
+      ? quad(
+          q.subject,
+          q.predicate,
+          namedNode("https://w3id.org/force/compliance-report#Inactive"),
+          q.graph,
+        )
+      : q,
+  );
+  await assert.rejects(
+    () => write(changed).then(verifyEnvelope),
+    /FORCE report graph differs/,
+  );
+});

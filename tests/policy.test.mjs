@@ -142,3 +142,106 @@ test("Request values cannot inject N3 or invalid retention values", () => {
   ])
     assert.throws(() => createFacts({ ...defaultState, ...patch }));
 });
+
+test("FORCE reports the evaluated policy/request and nine satisfied premises", () => {
+  const result = execute(createFacts(defaultState));
+  const interpreted = interpret(result.output);
+  assert.equal(interpreted.activation, "Active");
+  assert.equal(interpreted.attempt, "Attempted");
+  assert.equal(interpreted.performance, "Unknown");
+  assert.equal(interpreted.deontic, "NonSet");
+  assert.equal(interpreted.premises.length, 9);
+  assert.ok(interpreted.premises.every((p) => p.state === "Satisfied"));
+  assert.match(result.output, /report:PolicyReport/);
+  assert.match(result.output, /:permission-report report:rule :offered-use/);
+  assert.match(result.output, /:agreement-42 odrl:permission :granted-use-42/);
+  assert.doesNotMatch(
+    result.output,
+    /report:Fulfilled|report:Performed|report:Violated|:policyPreserved/,
+  );
+});
+test("Explicit failed premises produce an Inactive report, not a prohibition or fulfilled duty", () => {
+  const result = reason({ consent: false });
+  assert.equal(result.activation, "Inactive");
+  assert.equal(
+    result.premises.find((p) => p.id === "consent-report").state,
+    "Unsatisfied",
+  );
+  assert.equal(result.performance, "Unknown");
+  assert.equal(result.deontic, "NonSet");
+});
+test("A missing ethics assertion without a negative snapshot statement stays unreported", () => {
+  const facts = createFacts({ ...defaultState, approval: false }).replace(
+    ":approvalAvailable false;",
+    "",
+  );
+  const result = interpret(execute(facts).output);
+  assert.equal(
+    result.premises.find((p) => p.id === "ethics-report").state,
+    "NotReported",
+  );
+  assert.equal(result.activation, "NotReported");
+  assert.equal(result.allowed, false);
+});
+test("Changing the FORCE action, target or party blocks activation", () => {
+  for (const [original, changed] of [
+    ["sotw:evaluatedAction odrl:use", "sotw:evaluatedAction odrl:distribute"],
+    ["sotw:evaluatedTarget _:data", "sotw:evaluatedTarget _:other"],
+    ["sotw:evaluatedParty :university", "sotw:evaluatedParty :outsider"],
+  ]) {
+    const result = interpret(
+      execute(createFacts(defaultState).replace(original, changed)).output,
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.activation, "Inactive");
+    assert.equal(result.attempt, "NotAttempted");
+  }
+});
+test("Contradictory snapshot evidence cannot produce a usable permission", () => {
+  const contradictory = createFacts(defaultState).replace(
+    ":approvalAvailable true;",
+    ":approvalAvailable false;",
+  );
+  assert.throws(
+    () => interpret(execute(contradictory).output),
+    /contradictory FORCE/,
+  );
+});
+test("RDF parsing accepts prefix aliases and ignores state-like literal content", () => {
+  const result = execute(createFacts(defaultState)).output;
+  const renamed = result.replaceAll("report:", "forceReport:");
+  assert.equal(interpret(renamed).activation, "Active");
+  assert.equal(
+    interpret(
+      '@prefix : <https://example.org/access#> . :note :text "report:activationState report:Active; odrl:Agreement".',
+    ).allowed,
+    false,
+  );
+  assert.throws(
+    () =>
+      interpret(
+        "@prefix : <https://example.org/access#> . @prefix report: <https://w3id.org/force/compliance-report#> . :permission-report report:activationState report:Active.",
+      ),
+    /Incomplete FORCE/,
+  );
+});
+
+test("Evaluation and ODRL request retention values must agree", () => {
+  const facts = createFacts(defaultState).replace(
+    ":retentionDays 30.",
+    ":retentionDays 90.",
+  );
+  const result = interpret(execute(facts).output);
+  assert.equal(result.activation, "Inactive");
+  assert.equal(
+    result.premises.find((p) => p.id === "retention-report").state,
+    "Unsatisfied",
+  );
+});
+test("An unsupported purpose operator cannot yield an active permission", () => {
+  const facts = createFacts(defaultState).replace(
+    "odrl:operator odrl:eq; odrl:rightOperand dpv:ScientificResearch.",
+    "odrl:operator odrl:neq; odrl:rightOperand dpv:ScientificResearch.",
+  );
+  assert.equal(interpret(execute(facts).output).allowed, false);
+});
